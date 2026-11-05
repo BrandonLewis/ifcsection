@@ -42,7 +42,7 @@ import math
 bl_info = {
     "name": "IfcSection",
     "author": "Brandon Lewis",
-    "version": (0, 1, 1),
+    "version": (0, 1, 2),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Section",
     "description": "Sections and developed elevations along an IFC alignment",
@@ -1518,8 +1518,12 @@ if bpy is not None:
         bl_label = "Step Date"
         bl_description = ("Move the 4D date by days, or to the previous / "
                           "next day something appears or is removed")
-        days: bpy.props.IntProperty(default=1)
-        event: bpy.props.IntProperty(default=0)    # -1 / +1: jump to event
+        # SKIP_SAVE: a panel button sets only one of the two, and Blender
+        # otherwise gives the other its LAST value - after "next event", a
+        # "-1 day" button would jump to the next event again
+        days: bpy.props.IntProperty(default=1, options={"SKIP_SAVE"})
+        event: bpy.props.IntProperty(default=0,    # -1 / +1: jump to event
+                                     options={"SKIP_SAVE"})
 
         def execute(self, context):
             props = context.scene.ifcsection
@@ -1645,16 +1649,15 @@ if bpy is not None:
                 row.prop(props, "date_filter", text="")
                 row.prop(props, "date", text="")
                 row = dbox.row(align=True)
-                for icon, kw in (("PREV_KEYFRAME", {"event": -1}),
-                                 ("TRIA_LEFT", {"days": -7}),
-                                 ("REW", {"days": -1}),
-                                 ("FF", {"days": 1}),
-                                 ("TRIA_RIGHT", {"days": 7}),
-                                 ("NEXT_KEYFRAME", {"event": 1})):
+                for icon, event, days in (("PREV_KEYFRAME", -1, 0),
+                                          ("TRIA_LEFT", 0, -7),
+                                          ("REW", 0, -1),
+                                          ("FF", 0, 1),
+                                          ("TRIA_RIGHT", 0, 7),
+                                          ("NEXT_KEYFRAME", 1, 0)):
                     op = row.operator("ifcsection.section_date_step", text="",
                                       icon=icon)
-                    for k, v in kw.items():
-                        setattr(op, k, v)
+                    op.event, op.days = event, days
                 ev = _STATE["events"]
                 dbox.label(text=f"schedule {ev[0]} to {ev[-1]}")
                 c = _STATE["counts"]

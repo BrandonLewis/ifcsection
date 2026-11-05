@@ -9,4 +9,4 @@ alignment - a Blender add-on (`ifcsection.addon`, built by
 
 Importing the package does not import Blender.
 """
-__version__ = "0.1.1"
+__version__ = "0.1.2"
