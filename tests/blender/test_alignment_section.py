@@ -365,6 +365,11 @@ def test_the_date_filter_hides_what_is_not_built_and_skips_its_cut(addon):
     assert len(bpy.data.objects[mod.CUT].data.polygons) > 0
     bpy.ops.ifcsection.section_date_step(days=-1)
     assert props.date == "2027-09-14" and not deck.visible_get()
+    # a panel button sets one of `event` / `days`; Blender gives an unset,
+    # saved property its LAST value, so after "next event" every back
+    # button jumped forward. Neither may be remembered.
+    rna = bpy.ops.ifcsection.section_date_step.get_rna_type().properties
+    assert rna["event"].is_skip_save and rna["days"].is_skip_save
     props.date_filter = False                      # everything back
     assert deck.visible_get() and not mod._STATE["hidden"]
 

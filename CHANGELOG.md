@@ -6,6 +6,11 @@ Newest first. Versions follow `pyproject.toml`; a tag `vX.Y.Z` publishes the add
 
 ### Fixed
 
+- **The 4D back buttons step back.** After "next event", the -1 day and
+  -7 day buttons jumped forward to the next event: Blender gave each
+  button the step operator's last-used `event`. The step's properties are
+  no longer remembered, and each button sets both.
+
 Ported from BIMForge (its fix for this project's PR #1 review):
 
 - **Ground still to dig draws its edges beyond the cut.** Before the dig
