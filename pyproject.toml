@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "ifcsection"
-version = "0.1.0"
+version = "0.1.1"
 description = "Cross sections and developed elevations along an IFC alignment: a Blender (Bonsai) add-on and the Python it carries"
 readme = "README.md"
 license = "Apache-2.0"

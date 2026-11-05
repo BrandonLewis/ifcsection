@@ -2,7 +2,7 @@
 
 Newest first. Versions follow `pyproject.toml`; a tag `vX.Y.Z` publishes the add-on zip.
 
-## Unreleased
+## 0.1.1 - 2026-11-05
 
 ### Fixed
 
