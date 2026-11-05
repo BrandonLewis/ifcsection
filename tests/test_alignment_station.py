@@ -1,4 +1,4 @@
-"""bimforge.bim.alignment_station: stationing an IfcAlignment.
+"""ifcsection.alignment_station: stationing an IfcAlignment.
 
 The truth is bimforge's own Alignment/Profile: the IFC written from them is
 stationed back and must land on the same point, bearing and grade.
@@ -14,8 +14,8 @@ import ifcopenshell.api  # noqa: E402
 import ifcopenshell.api.alignment as api  # noqa: E402
 
 from bimforge.author.sweep import to_model  # noqa: E402
-from bimforge.author.tests.test_emit_alignment import _emit, _model  # noqa: E402
-from bimforge.bim.alignment_station import (  # noqa: E402
+from support import _emit, _model  # noqa: E402
+from ifcsection.alignment_station import (  # noqa: E402
     AlignmentStationer, alignments, format_offset, format_station,
     station_unit)
 
@@ -198,7 +198,7 @@ def test_locate_many_matches_locate(emitted):
 def test_an_international_foot_project_keeps_its_stations():
     """A file in the international foot (0.3048 m): its native 50,000 ft
     station reads 500+00.00, not 499+99.90 through the US survey foot."""
-    from bimforge.bim.alignment_station import INTL_FT_M, foot_m
+    from ifcsection.alignment_station import INTL_FT_M, foot_m
     f = _feet_file()
     ia = api.create(f, "B", include_vertical=False)
     lay = api.get_horizontal_layout(ia)
@@ -284,7 +284,7 @@ def test_the_kernel_call_unwraps_for_ifcopenshell_08(monkeypatch):
     falls back to unwrapping itself."""
     import ifcopenshell.geom
     from ifcopenshell import ifcopenshell_wrapper as w
-    from bimforge.bim import alignment_station as A
+    from ifcsection import alignment_station as A
     f = _feet_file()
     p = f.create_entity("IfcCartesianPoint", Coordinates=(1.0, 2.0, 3.0))
     s = ifcopenshell.geom.settings()

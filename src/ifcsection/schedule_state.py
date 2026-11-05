@@ -15,11 +15,11 @@ is on or before D, gone if its disappear date is.
 
 Kept to ifcopenshell and the standard library, so it ships inside the
 Blender add-on zip next to alignment_station (Bonsai's Python has
-ifcopenshell but not bimforge).
+ifcopenshell and nothing else of ours).
 
 Examples:
     import ifcopenshell
-    from bimforge.bim.schedule_state import element_spans, standing
+    from ifcsection.schedule_state import element_spans, standing
     f = ifcopenshell.open("model.4d.ifc")
     spans = element_spans(f)
     up = [gid for gid, sp in spans.items() if standing(sp, "2027-06-15")]

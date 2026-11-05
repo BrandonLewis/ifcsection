@@ -1,16 +1,13 @@
-"""Blender add-ons that ship with bimforge.
+"""Build the installable Blender add-on zip.
 
-`alignment_section` — a station slider that cuts a section along an IFC
-alignment (View3D > Sidebar > Section). Blender installs an add-on from a
-zip, and the add-on must carry the stationing module it uses (Bonsai's
-Python has ifcopenshell but not bimforge), so :func:`build_addon` zips the
-add-on together with its own copies of bimforge.bim.alignment_station,
-bimforge.bim.schedule_state and bimforge.bim.developed (the developed
-elevation; it needs shapely, which Bonsai ships, and ezdxf for its DXF).
+Blender installs an add-on from a zip holding one package. The zip carries
+`addon.py` as the package's __init__ and its sibling modules (stationing,
+the developed / cross-section drawing, the 4D state, the section styles).
+The drawing needs shapely, which Bonsai ships, and ezdxf for its DXF.
 
 Examples:
-    python -m bimforge.blender                      # -> ./bimforge_alignment_section.zip
-    python -m bimforge.blender --out dist/section.zip
+    python -m ifcsection                       # -> ./ifcsection_addon.zip
+    python -m ifcsection --out dist/ifcsection.zip
     # Blender: Edit > Preferences > Add-ons > Install from Disk... > the zip
 """
 from __future__ import annotations
@@ -18,23 +15,18 @@ from __future__ import annotations
 import zipfile
 from pathlib import Path
 
-ADDON = "bimforge_alignment_section"
+ADDON = "ifcsection_addon"
+#: the modules the add-on carries next to its __init__
+MODULES = ("alignment_station", "developed", "schedule_state", "section_style")
 
 
 def build_addon(out: str | Path) -> Path:
     """Write the installable add-on zip to `out`; returns the path."""
     here = Path(__file__).resolve().parent
-    src = here / "alignment_section" / "__init__.py"
-    station = here.parent / "bim" / "alignment_station.py"
-    sched = here.parent / "bim" / "schedule_state.py"
-    dev = here.parent / "bim" / "developed.py"
-    style = here.parent / "bim" / "section_style.py"
     out = Path(out)
     out.parent.mkdir(parents=True, exist_ok=True)
     with zipfile.ZipFile(out, "w", zipfile.ZIP_DEFLATED) as z:
-        z.write(src, f"{ADDON}/__init__.py")
-        z.write(station, f"{ADDON}/alignment_station.py")
-        z.write(sched, f"{ADDON}/schedule_state.py")
-        z.write(dev, f"{ADDON}/developed.py")
-        z.write(style, f"{ADDON}/section_style.py")
+        z.write(here / "addon.py", f"{ADDON}/__init__.py")
+        for name in MODULES:
+            z.write(here / f"{name}.py", f"{ADDON}/{name}.py")
     return out

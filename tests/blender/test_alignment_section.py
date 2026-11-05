@@ -1,6 +1,6 @@
 """The Blender alignment-section add-on, driven headless through `bpy`.
 
-Skipped unless the `bpy` wheel is importable (it is not a bimforge
+Skipped unless the `bpy` wheel is importable (it is not an ifcsection
 dependency). The add-on is loaded from the zip `build_addon` writes — the
 artifact a user installs — and slid along the fixture deck: the cut must lie
 on the plane square to the alignment, and fill to the deck's section area.
@@ -17,8 +17,8 @@ bpy = pytest.importorskip("bpy")
 ifcopenshell = pytest.importorskip("ifcopenshell")
 import ifcopenshell.geom  # noqa: E402
 
-from bimforge.author.tests.test_emit_alignment import _emit, _model  # noqa: E402
-from bimforge.blender import ADDON, build_addon  # noqa: E402
+from support import HAS_VOIDS, _emit, _model  # noqa: E402
+from ifcsection.build import ADDON, build_addon  # noqa: E402
 
 SQ_M_PER_SQ_FT = (1200.0 / 3937.0) ** 2
 
@@ -92,10 +92,10 @@ def addon(tmp_path_factory):
     from bimforge.bim.linear_ref import annotate
     assert annotate(str(path))["elements"] == 1      # the deck's station range
     _import_meshes(f)
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.source = "FILE"
     props.ifc_path = str(path)
-    assert bpy.ops.bimforge.section_load() == {"FINISHED"}
+    assert bpy.ops.ifcsection.section_load() == {"FINISHED"}
     yield mod, m, al, prof
     mod.unregister()
     sys.path.remove(str(tmp / "addons"))
@@ -103,7 +103,7 @@ def addon(tmp_path_factory):
 
 def test_load_draws_the_axis_and_reads_feet(addon):
     mod, m, al, _ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     st = mod._stationer(props)
     assert st.name == "ML" and st.station_unit == "ft"
     axis = bpy.data.objects[mod.AXIS]
@@ -113,10 +113,10 @@ def test_load_draws_the_axis_and_reads_feet(addon):
 
 def test_the_cut_is_square_to_the_alignment_and_fills_the_deck(addon):
     mod, m, al, _ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     st = mod._stationer(props)
     props.goto = 1123.4                       # mid-curve, feet
-    assert bpy.ops.bimforge.section_goto() == {"FINISHED"}
+    assert bpy.ops.ifcsection.section_goto() == {"FINISHED"}
     fr = mod._STATE["frame"]
     assert st.format_station(fr.station) == "11+23.40"
     me = bpy.data.objects[mod.CUT].data
@@ -130,7 +130,7 @@ def test_the_cut_is_square_to_the_alignment_and_fills_the_deck(addon):
 
 def test_camera_looks_down_the_alignment(addon):
     mod, *_ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.position = 0.5
     fr = mod._STATE["frame"]
     cam = bpy.data.objects[mod.CAM]
@@ -146,11 +146,11 @@ def test_camera_looks_down_the_alignment(addon):
 def test_step_and_timeline(addon):
     mod, *_ = addon
     scene = bpy.context.scene
-    props = scene.bimforge_section
+    props = scene.ifcsection
     st = mod._stationer(props)
     props.position = 0.0
     props.step = 50.0
-    bpy.ops.bimforge.section_step(direction=1)
+    bpy.ops.ifcsection.section_step(direction=1)
     assert st.convert(mod._STATE["frame"].station - st.start_station, "ft") \
         == pytest.approx(50.0)
     props.follow_frames = True
@@ -161,7 +161,7 @@ def test_step_and_timeline(addon):
 
 
 def test_bearing_text():
-    from bimforge.blender.alignment_section import _bearing
+    from ifcsection.addon import _bearing
     assert _bearing(10.0) == "N 10-00-00 E"
     assert _bearing(180 - 82.844566666) == "S 82-50-40 E"
     assert _bearing(330.5) == "N 29-30-00 W"
@@ -204,9 +204,9 @@ def _mat(name, rgb=None):
 
 def test_each_item_fills_per_its_styling(addon):
     mod, *_ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.goto = 1200.0
-    bpy.ops.bimforge.section_goto()
+    bpy.ops.ifcsection.section_goto()
     fr = mod._STATE["frame"]
     ft = 1200.0 / 3937.0
     hma = (0.10, 0.10, 0.11)
@@ -223,7 +223,7 @@ def test_each_item_fills_per_its_styling(addon):
     ]
     try:
         props.fill_style = "STYLE"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         me = bpy.data.objects[mod.CUT].data
         area: dict[str, float] = {}
         for poly in me.polygons:
@@ -263,7 +263,7 @@ def test_each_item_fills_per_its_styling(addon):
         assert max(abs((v.co - p0).dot(look)) for v in lines.vertices) \
             < mod.NEAR_GAP
         props.fill_style = "SINGLE"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         me = bpy.data.objects[mod.CUT].data
         assert [m.name for m in me.materials] == ["Section Cut"]
     finally:
@@ -274,7 +274,7 @@ def test_each_item_fills_per_its_styling(addon):
 
 def test_palette_agrees_with_the_ifc_styles():
     from bimforge.author import ifc_styles as S
-    from bimforge.blender.alignment_section import FILL_PALETTE, classify
+    from ifcsection.addon import FILL_PALETTE, classify
     rgb = {k: v for k, _p, v in FILL_PALETTE}
     for kind, src in [("Concrete", S._CONCRETE), ("Reinforcing Steel", S._REBAR),
                       ("Structural Steel", S._STEEL), ("Earthwork", S._EARTH),
@@ -303,10 +303,10 @@ def test_palette_agrees_with_the_ifc_styles():
 def test_offsets_ruler_locate_and_inquire(addon):
     mod, m, al, prof = addon
     scene = bpy.context.scene
-    props = scene.bimforge_section
+    props = scene.ifcsection
     st = mod._stationer(props)
     props.goto = 1200.0
-    bpy.ops.bimforge.section_goto()
+    bpy.ops.ifcsection.section_goto()
     fr = mod._STATE["frame"]
     k = m.ctx.ft_to_m
     # ruler: CL plus 10-ft ticks out to the view's half width, labelled
@@ -319,7 +319,7 @@ def test_offsets_ruler_locate_and_inquire(addon):
     assert f"{10 * n}' Lt" in labels and f"{10 * n}' Rt" in labels
     # locate 6 ft Rt: on the deck (12 ft wide, top at grade) -> top EL = PG
     props.pt_offset, props.pt_side = 5.0, "RT"
-    assert bpy.ops.bimforge.section_offset_locate() == {"FINISHED"}
+    assert bpy.ops.ifcsection.section_offset_locate() == {"FINISHED"}
     d, off, z, hit = mod._STATE["point"]
     assert off == pytest.approx(-5.0 * k)
     n_, e_ = al.station_offset(1200.0, 5.0, "Rt")
@@ -334,7 +334,7 @@ def test_offsets_ruler_locate_and_inquire(addon):
     assert text.startswith("Sta 12+00.00, 5.00 Rt") and "top EL" in text
     # inquire: move the cursor 20 ft Lt at another station and cut there
     scene.cursor.location = st.point_at((1300.0 - al.s_start) * k, 20.0 * k)
-    assert bpy.ops.bimforge.section_offset_inquire(cut_there=True) \
+    assert bpy.ops.ifcsection.section_offset_inquire(cut_there=True) \
         == {"FINISHED"}
     assert mod._point_text(props, st).startswith("Sta 13+00.00, 20.00 Lt")
     assert st.convert(mod._STATE["frame"].station, "ft") == pytest.approx(
@@ -347,7 +347,7 @@ def test_offsets_ruler_locate_and_inquire(addon):
 def test_the_date_filter_hides_what_is_not_built_and_skips_its_cut(addon):
     mod, *_ = addon
     scene = bpy.context.scene
-    props = scene.bimforge_section
+    props = scene.ifcsection
     assert mod._STATE["events"] == ["2027-09-15"]
     deck = bpy.data.objects["deck"]
     props.position = 0.5
@@ -359,11 +359,11 @@ def test_the_date_filter_hides_what_is_not_built_and_skips_its_cut(addon):
                                     "removed": 0, "unmatched": 0}
     assert not deck.visible_get() and deck.hide_render
     assert len(bpy.data.objects[mod.CUT].data.polygons) == 0
-    bpy.ops.bimforge.section_date_step(event=1)    # next event: the pour
+    bpy.ops.ifcsection.section_date_step(event=1)    # next event: the pour
     assert props.date == "2027-09-15"
     assert deck.visible_get() and not deck.hide_render
     assert len(bpy.data.objects[mod.CUT].data.polygons) > 0
-    bpy.ops.bimforge.section_date_step(days=-1)
+    bpy.ops.ifcsection.section_date_step(days=-1)
     assert props.date == "2027-09-14" and not deck.visible_get()
     props.date_filter = False                      # everything back
     assert deck.visible_get() and not mod._STATE["hidden"]
@@ -371,11 +371,11 @@ def test_the_date_filter_hides_what_is_not_built_and_skips_its_cut(addon):
 
 def test_go_to_selected_reads_the_station_from_the_ifc(addon):
     mod, m, al, _prof = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     deck = bpy.data.objects["deck"]
     bpy.context.view_layer.objects.active = deck
     props.position = 0.0
-    assert bpy.ops.bimforge.section_to_selected() == {"FINISHED"}
+    assert bpy.ops.ifcsection.section_to_selected() == {"FINISHED"}
     st = mod._stationer(props)
     k = m.ctx.ft_to_m
     # the deck runs 1010 -> 1360: the middle of its range, read off the IFC
@@ -392,14 +392,14 @@ def test_developed_elevation_in_its_own_scene(addon):
     pytest.importorskip("shapely")
     mod, m, al, _prof = addon
     home = bpy.context.scene
-    props = home.bimforge_section
+    props = home.ifcsection
     props.dev_from, props.dev_to = "10+20", "13+50"
     props.dev_offset, props.dev_side, props.dev_look = 0.0, "LT", "LEFT"
     props.dev_depth = 10.0
     try:
-        assert bpy.ops.bimforge.developed_build() == {"FINISHED"}
+        assert bpy.ops.ifcsection.developed_build() == {"FINISHED"}
         sc = bpy.data.scenes[mod.DEV_SCENE]
-        info = sc["bimforge_developed"]
+        info = sc["ifcsection_developed"]
         assert info["length"] == pytest.approx(330.0, abs=0.05)   # on the line
         cuts = [o for o in sc.objects if o.name.startswith("Developed cut")]
         area = sum(p.area for o in cuts for p in o.data.polygons) / SQ_M_PER_SQ_FT
@@ -417,7 +417,7 @@ def test_export_section_dxf_is_the_section_the_camera_shows(addon, tmp_path):
     pytest.importorskip("shapely")
     ezdxf = pytest.importorskip("ezdxf")
     mod, m, al, _prof = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.dev_from = props.dev_to = ""
     props.position = 0.5
     props.look = "AHEAD"
@@ -426,7 +426,7 @@ def test_export_section_dxf_is_the_section_the_camera_shows(addon, tmp_path):
     assert view.station == pytest.approx(st.convert(mod._STATE["frame"].station, "ft"))
     assert view.width == pytest.approx(st.to_unit(props.width, "ft"))
     out = tmp_path / "sec.dxf"
-    assert bpy.ops.bimforge.section_dxf(filepath=str(out)) == {"FINISHED"}
+    assert bpy.ops.ifcsection.section_dxf(filepath=str(out)) == {"FINISHED"}
     doc = ezdxf.readfile(str(out))
     (lay,) = [x for x in doc.layouts if x.name != "Model"]
     titles = [e.dxf.text for e in lay if e.dxftype() == "TEXT"]
@@ -455,14 +455,14 @@ def test_fills_are_unlit_hatched_and_tiny_bars_dotted(addon):
     per kind in camera space at a period that follows the view width; a bar
     smaller than the minimum dot is drawn as a dot that size."""
     mod, *_ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.goto = 1200.0
-    bpy.ops.bimforge.section_goto()
+    bpy.ops.ifcsection.section_goto()
     fr = mod._STATE["frame"]
     made = [_box("bar", fr, -0.01, 0.01, -0.5, -0.48, [_mat("Reinforcing Steel")])]
     try:
         props.fill_style = "STYLE"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         me = bpy.data.objects[mod.CUT].data
         r = props.width * mod.DOT_FRACTION
         bar = [p for p in me.polygons
@@ -495,7 +495,7 @@ def test_station_and_offset_sliders(addon):
     drives the section; the offset slider runs across the view, - Lt / + Rt,
     and carries the 3D cursor."""
     mod, m, al, _prof = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     st = mod._stationer(props)
     rna = props.bl_rna.properties["station"]
     assert (rna.hard_min, rna.hard_max) == (pytest.approx(st.convert(st.start_station, "ft")),
@@ -534,13 +534,13 @@ def test_review_paint_follows_the_object_and_views_keep_their_hatch(addon):
     the developed scene's hatch period is its own; the offset slider spans
     the view, not more."""
     mod, *_ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     props.goto = 1200.0
-    bpy.ops.bimforge.section_goto()
+    bpy.ops.ifcsection.section_goto()
     fr = mod._STATE["frame"]
     made = [_box("IfcWall/Stem", fr, 2.5, 3.0, -1.0, 0.0, [_mat("Material", (0.5, 0.4, 0.3))])]
     try:
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         me = bpy.data.objects[mod.CUT].data
         names = [m.name for m in me.materials]
         assert "Section · Material [stipple]" in names
@@ -550,7 +550,7 @@ def test_review_paint_follows_the_object_and_views_keep_their_hatch(addon):
         for ob in made:
             bpy.data.objects.remove(ob)
     lean = mod._section_material("Lean-Concrete", (0.9, 0.85, 0.62), prefix=mod.DEV_PREFIX)
-    assert lean.name == "Elevation · Lean-Concrete" and lean["bimforge_paint"].startswith("sand")
+    assert lean.name == "Elevation · Lean-Concrete" and lean["ifcsection_paint"].startswith("sand")
     sec = mod._section_material("Concrete", (0.75, 0.73, 0.68))
     mod.set_hatch_period(0.123, mod.DEV_PREFIX)
     mod.set_hatch_period(0.456)
@@ -568,13 +568,13 @@ def test_review_paint_follows_the_object_and_views_keep_their_hatch(addon):
 
 def test_cut_now_sets_the_hatch_period(addon):
     mod, *_ = addon
-    props = bpy.context.scene.bimforge_section
+    props = bpy.context.scene.ifcsection
     w = props.width
     try:
         props.live_cut = False
         props.width = w * 1.5
         mod.set_hatch_period(0.3)
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         conc = bpy.data.materials["Section · Concrete"]
         assert conc.node_tree.nodes[mod.PERIOD_NODE].outputs[0].default_value == \
             pytest.approx(props.width / 120.0, rel=1e-4)
@@ -590,16 +590,16 @@ def test_exit_closes_the_section_and_the_slider_brings_it_back(addon):
     rebuilds it all."""
     mod, *_ = addon
     sc = bpy.context.scene
-    props = sc.bimforge_section
+    props = sc.ifcsection
     own = bpy.data.objects.new("Own camera", bpy.data.cameras.new("Own camera"))
     sc.collection.objects.link(own)
     sc.camera = own
     props.position = 0.4
-    bpy.ops.bimforge.section_view()
+    bpy.ops.ifcsection.section_view()
     assert sc.camera.name == mod.CAM
     props.date_filter = True
     try:
-        assert bpy.ops.bimforge.section_exit() == {"FINISHED"}
+        assert bpy.ops.ifcsection.section_exit() == {"FINISHED"}
         assert bpy.data.collections.get(mod.COLL) is None
         for name in (mod.CAM, mod.PLANE, mod.CUT, mod.LINES, mod.AXIS):
             assert bpy.data.objects.get(name) is None, name
@@ -616,6 +616,7 @@ def test_exit_closes_the_section_and_the_slider_brings_it_back(addon):
         bpy.data.objects.remove(own)
 
 
+@pytest.mark.skipif(not HAS_VOIDS, reason="needs BIMForge with Element.voids")
 def test_excavation_is_ground_removed(addon, tmp_path):
     """An IfcEarthworksCut voiding the ground (a hole in the ground, not a
     block in it): LIMITS draws its outline as the dashed limit of excavation
@@ -626,7 +627,7 @@ def test_excavation_is_ground_removed(addon, tmp_path):
     from bimforge.author.model import Element, StructureModel
     from bimforge.author.sweep import SweptSection
     sc = bpy.context.scene
-    props = sc.bimforge_section
+    props = sc.ifcsection
     home_path = props.ifc_path
     dm = StructureModel("dug", m.ctx)
 
@@ -650,9 +651,9 @@ def test_excavation_is_ground_removed(addon, tmp_path):
     ft2 = SQ_M_PER_SQ_FT
     try:
         props.ifc_path = str(path)
-        assert bpy.ops.bimforge.section_load() == {"FINISHED"}
+        assert bpy.ops.ifcsection.section_load() == {"FINISHED"}
         props.goto = 1200.0
-        bpy.ops.bimforge.section_goto()
+        bpy.ops.ifcsection.section_goto()
 
         def fills():
             me = bpy.data.objects[mod.CUT].data
@@ -662,7 +663,7 @@ def test_excavation_is_ground_removed(addon, tmp_path):
                 area[n] = area.get(n, 0.0) + poly.area / ft2
             return area
         props.excavation = "LIMITS"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         a = fills()
         assert not cut_ob.visible_get()                     # no block in the hole
         assert not any("Excavation" in n for n in a)
@@ -670,13 +671,13 @@ def test_excavation_is_ground_removed(addon, tmp_path):
         lim = bpy.data.objects[mod.LIMITS]
         assert lim.visible_get() and len(lim.data.polygons) > 10   # dashed
         props.excavation = "SOLID"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         assert cut_ob.visible_get()
         solid = {n: v for n, v in fills().items() if n.startswith("Section · Excavation (removed)")}
         assert sum(solid.values()) == pytest.approx(12 * 6, rel=1e-2)
         assert not bpy.data.objects[mod.LIMITS].visible_get()
         props.excavation = "HIDDEN"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         assert not cut_ob.visible_get() and not bpy.data.objects[mod.LIMITS].visible_get()
         # 4D: dug on 2027-01-10; on 2027-01-05 the hole is still ground
         props.excavation = "LIMITS"
@@ -684,7 +685,7 @@ def test_excavation_is_ground_removed(addon, tmp_path):
         mod._STATE["spans"] = {gid: mod._ss.Span("2027-01-10", None, ("dig",))}
         props.date = "2027-01-05"
         props.date_filter = True
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         assert fills()["Section · Earthwork"] == pytest.approx(40 * 12, rel=1e-2)   # whole
         props.date_filter = False
     finally:
@@ -693,7 +694,7 @@ def test_excavation_is_ground_removed(addon, tmp_path):
         for ob in made:
             bpy.data.objects.remove(ob)
         props.ifc_path = home_path
-        bpy.ops.bimforge.section_load()
+        bpy.ops.ifcsection.section_load()
 
 
 def test_a_pay_item_excavation_body_is_not_a_block_in_the_hole(addon, tmp_path):
@@ -705,7 +706,7 @@ def test_a_pay_item_excavation_body_is_not_a_block_in_the_hole(addon, tmp_path):
     from bimforge.author.model import Element, StructureModel
     from bimforge.author.sweep import SweptSection
     sc = bpy.context.scene
-    props = sc.bimforge_section
+    props = sc.ifcsection
     home_path = props.ifc_path
     dm = StructureModel("holed", m.ctx)
 
@@ -727,11 +728,11 @@ def test_a_pay_item_excavation_body_is_not_a_block_in_the_hole(addon, tmp_path):
     exc.name = "IfcEarthworksElement/structure excavation"   # as Bonsai names it
     try:
         props.ifc_path = str(path)
-        assert bpy.ops.bimforge.section_load() == {"FINISHED"}
+        assert bpy.ops.ifcsection.section_load() == {"FINISHED"}
         props.goto = 1200.0
-        bpy.ops.bimforge.section_goto()
+        bpy.ops.ifcsection.section_goto()
         props.excavation = "LIMITS"
-        bpy.ops.bimforge.section_cut()
+        bpy.ops.ifcsection.section_cut()
         me = bpy.data.objects[mod.CUT].data
         area = {}
         for poly in me.polygons:
@@ -746,4 +747,4 @@ def test_a_pay_item_excavation_body_is_not_a_block_in_the_hole(addon, tmp_path):
         for ob in made:
             bpy.data.objects.remove(ob)
         props.ifc_path = home_path
-        bpy.ops.bimforge.section_load()
+        bpy.ops.ifcsection.section_load()

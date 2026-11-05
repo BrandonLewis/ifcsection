@@ -2,9 +2,8 @@
 distance along it, in SI metres in the model frame.
 
 This is the evaluator behind the Blender section slider
-(:mod:`bimforge.blender.alignment_section`), kept free of `bpy` and of the
-rest of bimforge so it ships inside the add-on zip unchanged and runs on the
-ifcopenshell that Bonsai bundles. Its only dependency is ifcopenshell.
+(:mod:`ifcsection.addon`), kept free of `bpy` so it ships inside the add-on
+zip unchanged and runs on the ifcopenshell that Bonsai bundles. Its only dependency is ifcopenshell.
 
 The alignment's representation curve (IfcGradientCurve, IfcCompositeCurve or
 IfcSegmentedReferenceCurve) is evaluated by ifcopenshell's geometry kernel —
@@ -22,7 +21,7 @@ linearly from the start station.
 
 Examples:
     import ifcopenshell
-    from bimforge.bim.alignment_station import AlignmentStationer, alignments
+    from ifcsection.alignment_station import AlignmentStationer, alignments
     f = ifcopenshell.open("bridge.ifc")
     st = AlignmentStationer(f, alignments(f)[0])
     fr = st.frame_at_station(1050.0)
@@ -111,7 +110,7 @@ def station_unit(f) -> str:
     """'ft' or 'm': how stations read on this project.
 
     A file whose length unit is a foot is a feet project. So is a metre file
-    whose IfcMapConversion scales to a feet CRS (bimforge writes SI metres
+    whose IfcMapConversion scales to a feet CRS (BIMForge writes SI metres
     with Scale = 3.2808 for a State Plane ftUS grid): its plans and stations
     are in feet even though the IFC is metric.
     """
@@ -239,7 +238,7 @@ class AlignmentStationer:
         """Model-frame z (metres) as a true elevation in metres.
 
         The model frame sits at the IfcMapConversion's OrthogonalHeight
-        (in map units, which are project units / Scale), so a bimforge file
+        (in map units, which are project units / Scale), so a BIMForge file
         with its base at elevation 200 ft reports 200 ft at model z = 0.
         """
         for mc in self.file.by_type("IfcMapConversion") if \

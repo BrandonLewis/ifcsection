@@ -6,7 +6,7 @@ name, e.g. "Compacted Fill"), else its object name ("IfcReinforcingBar/B1",
 "S-EW-FILL"). The first kind whose pattern matches wins, so rebar is tried
 before steel, lean concrete before concrete, compacted fill before native
 earth. The rgb of the kinds BIMForge styles itself are
-bimforge.author.ifc_styles' (a test holds them equal).
+BIMForge's (bimforge.author.ifc_styles; a test holds them equal).
 
 Each kind carries two hatches:
 
@@ -17,7 +17,7 @@ Each kind carries two hatches:
   materials (Material Preview / Rendered): "stipple", "sand", "earth",
   "lines", "cross", "gravel", "solid", or "" for a flat fill.
 
-    from bimforge.bim.section_style import classify, style_of
+    from ifcsection.section_style import classify, style_of
     classify("Compacted Fill")          # ('Compacted Fill', (0.80, 0.69, 0.46))
     style_of("IfcReinforcingBar/B1").dxf  # 'SOLID'
 """

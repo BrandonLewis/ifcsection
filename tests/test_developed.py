@@ -1,4 +1,4 @@
-"""bimforge.bim.developed: developed elevations along an IfcAlignment."""
+"""ifcsection.developed: developed elevations along an IfcAlignment."""
 from __future__ import annotations
 
 import math
@@ -15,8 +15,8 @@ from bimforge.author.emit_ifc import emit_ifc  # noqa: E402
 from bimforge.author.model import Element, StructureModel  # noqa: E402
 from bimforge.author.project import ProjectContext  # noqa: E402
 from bimforge.author.sweep import SweptSection  # noqa: E402
-from bimforge.author.tests.test_emit_alignment import POB, RUN  # noqa: E402
-from bimforge.bim.developed import (ElevationView, SectionView,  # noqa: E402
+from support import HAS_VOIDS, POB, RUN  # noqa: E402
+from ifcsection.developed import (ElevationView, SectionView,  # noqa: E402
                                     cross_section, develop, load_set,
                                     parse_station, write_dxf)
 
@@ -224,7 +224,7 @@ def test_section_fills_read_as_what_they_are(wall_section):
     # the see-through earth style still fills in its own colour, not half dark
     assert layers["E-CUT-Earthwork"] == pytest.approx(tuple(S._EARTH["rgb"]), abs=0.01)
     # unstyled: what its name says (as the Blender add-on reads it)
-    from bimforge.bim.section_style import by_kind
+    from ifcsection.section_style import by_kind
     assert layers["E-CUT-Gravel"] == pytest.approx(by_kind("Gravel").rgb)
     # the ground is wider than the view, yet closes and fills to its edges
     (_l, _r, rings), = [c for c in dr.cut if c[0] == "E-CUT-Earthwork"]
@@ -234,7 +234,7 @@ def test_section_fills_read_as_what_they_are(wall_section):
 
 def test_the_dxf_hatches_each_kind_and_dots_the_rebar(wall_section, tmp_path):
     ezdxf = pytest.importorskip("ezdxf")
-    from bimforge.bim.section_style import MIN_DOT_IN, by_kind, hatch_scale
+    from ifcsection.section_style import MIN_DOT_IN, by_kind, hatch_scale
     out = tmp_path / "sec.dxf"
     write_dxf([cross_section(wall_section, SectionView("S", 1050.0, width=30.0,
                                                        depth=1.0, scale=4))], str(out))
@@ -258,7 +258,7 @@ def test_the_dxf_hatches_each_kind_and_dots_the_rebar(wall_section, tmp_path):
 
 def test_the_style_table():
     from bimforge.author import ifc_styles as S
-    from bimforge.bim.section_style import KINDS, classify, hatch_scale, style_of
+    from ifcsection.section_style import KINDS, classify, hatch_scale, style_of
     import ezdxf.tools.pattern as P
     names = set(P.ISO_PATTERN)
     assert all(k.dxf == "SOLID" or k.dxf in names for k in KINDS)
@@ -282,8 +282,8 @@ def test_review_round_trips_and_edges(wall_section, tmp_path):
     normalise, and an unnamed alignment resolves by its '#id' label."""
     ezdxf = pytest.importorskip("ezdxf")
     from types import SimpleNamespace as NS
-    from bimforge.bim import developed as D
-    from bimforge.bim.section_style import KINDS, style_of
+    from ifcsection import developed as D
+    from ifcsection.section_style import KINDS, style_of
     # 30 ft wide misses nothing; 0.5 ft wide at CL leaves the bar (0.5 Lt) out
     narrow = cross_section(wall_section, SectionView("N", 1050.0, width=0.6, depth=1.0))
     assert all(ring and len(ring[0]) >= 3 for _l, _r, rings in narrow.cut for ring in rings)
@@ -312,8 +312,8 @@ def test_review_round_trips_and_edges(wall_section, tmp_path):
 
 
 def test_an_unnamed_alignment_resolves_by_its_label(wall_section):
-    from bimforge.bim.alignment_station import AlignmentStationer, alignments
-    from bimforge.bim.developed import _stationer_for
+    from ifcsection.alignment_station import AlignmentStationer, alignments
+    from ifcsection.developed import _stationer_for
     al = alignments(wall_section)[0]
     name, al.Name = al.Name, None
     try:
@@ -329,7 +329,7 @@ def test_review_two_names_before_class_and_long_bars_keep_their_length(tmp_path)
     long thin bar is not shrunk to a dot."""
     ezdxf = pytest.importorskip("ezdxf")
     from types import SimpleNamespace as NS
-    from bimforge.bim import developed as D
+    from ifcsection import developed as D
     el = NS(Name="Lean Concrete", is_a=lambda *a: "IfcWall")
     layer, tri = D._cut_layer(el, None, [], [(0.6, 0.6, 0.6)], [(0.6, 0.6, 0.6)])
     assert layer == "E-CUT-Lean-Concrete" and tri == [(0.90, 0.85, 0.62)]
@@ -349,8 +349,8 @@ def test_review_three_classification_materials_and_occlusion(wall_section):
     material; a cut face hides what lies behind it."""
     import numpy as np
     from types import SimpleNamespace as NS
-    from bimforge.bim import developed as D
-    from bimforge.bim.section_style import style_of
+    from ifcsection import developed as D
+    from ifcsection.section_style import style_of
     # 1. classified on the layer as written, not the full name
     long = "Existing reinforced concrete (Br 12-3456), to be removed"
     el = NS(Name="E1", is_a=lambda *a: "IfcWall")
@@ -402,13 +402,14 @@ def dug(tmp_path_factory):
     return ifcopenshell.open(str(out))
 
 
+@pytest.mark.skipif(not HAS_VOIDS, reason="needs BIMForge with Element.voids")
 def test_excavation_is_ground_removed_in_a_section(dug, tmp_path, monkeypatch):
     """The cut is never a fill: the ground shows the hole, the cut's outline
     is the dashed limit of excavation, and before its dig date (4D) it is
     still ground."""
     from shapely.geometry import Polygon
-    from bimforge.bim import developed as D
-    from bimforge.bim import schedule_state as SS
+    from ifcsection import developed as D
+    from ifcsection import schedule_state as SS
 
     def area(dr, layer):
         return sum(Polygon(p[0], p[1:]).area for lay, _r, ps in dr.cut if lay == layer
@@ -446,8 +447,8 @@ def test_a_pay_item_excavation_body_is_ground_removed_too(tmp_path, monkeypatch)
     unhosted body (IfcEarthworksElement EXCAVATION, #364). It is drawn as the
     limit of excavation, never a block in the hole; before its dig, ground."""
     from shapely.geometry import Polygon
-    from bimforge.bim import developed as D
-    from bimforge.bim import schedule_state as SS
+    from ifcsection import developed as D
+    from ifcsection import schedule_state as SS
     ctx = _ctx()
     al = Alignment(POB, RUN, name="ML")
     m = StructureModel("holed", ctx)
@@ -485,7 +486,7 @@ def test_an_enclosed_cavity_stays_a_hole():
     overexcavation) cuts as an outline with a hole, not a solid: polygonize
     returns the cavity as a face too."""
     from shapely.geometry import Polygon
-    from bimforge.bim.developed import _polygons
+    from ifcsection.developed import _polygons
     def ring(x0, x1, y0, y1):
         p = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
         return list(zip(p, p[1:] + p[:1]))

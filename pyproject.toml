@@ -1,0 +1,39 @@
+[build-system]
+requires = ["setuptools>=77", "wheel"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "ifcsection"
+version = "0.1.0"
+description = "Cross sections and developed elevations along an IFC alignment: a Blender (Bonsai) add-on and the Python it carries"
+readme = "README.md"
+license = "Apache-2.0"
+license-files = ["LICENSE", "NOTICE"]
+authors = [{ name = "Brandon Lewis" }]
+requires-python = ">=3.10"
+# what the add-on runs on inside Bonsai: ifcopenshell (0.8.5 in Bonsai 0.8.x, or 0.9),
+# numpy and shapely (Bonsai ships them); ezdxf only for the DXF sheets
+dependencies = ["ifcopenshell>=0.8", "numpy", "shapely>=2"]
+keywords = ["ifc", "ifc4x3", "alignment", "blender", "bonsai", "civil", "section"]
+classifiers = [
+    "Programming Language :: Python :: 3",
+    "Topic :: Scientific/Engineering",
+    "Intended Audience :: Science/Research",
+]
+
+[project.optional-dependencies]
+dxf = ["ezdxf>=1.1"]
+# BIMForge builds the test models (an alignment, swept bodies, styled IFC);
+# it is a TEST dependency only - the package never imports it
+test = ["pytest", "ezdxf>=1.1", "matplotlib", "bimforge>=0.1.98"]
+
+[project.urls]
+Homepage = "https://github.com/BrandonLewis/ifcsection"
+Issues = "https://github.com/BrandonLewis/ifcsection/issues"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src", "tests"]

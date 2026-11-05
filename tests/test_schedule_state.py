@@ -1,4 +1,4 @@
-"""bimforge.bim.schedule_state: the 4D state on a day."""
+"""ifcsection.schedule_state: the 4D state on a day."""
 from __future__ import annotations
 
 import pytest
@@ -6,7 +6,7 @@ import pytest
 ifcopenshell = pytest.importorskip("ifcopenshell")
 import ifcopenshell.api  # noqa: E402
 
-from bimforge.bim.schedule_state import (  # noqa: E402
+from ifcsection.schedule_state import (  # noqa: E402
     Span, element_spans, event_days, shift_day, standing, state)
 
 

@@ -1,4 +1,4 @@
-"""Alignment Section — a Blender add-on: slide a cross-section along an IFC
+"""IfcSection — a Blender add-on: slide a cross-section along an IFC
 alignment.
 
 View3D > Sidebar (N) > Section. Pick the IFC (the one Bonsai has open, or a
@@ -30,34 +30,31 @@ developed-elevation scene, back to the model.
 The slider can follow the timeline, so scrubbing frames sweeps the section
 along the alignment (and rendering the frames makes a fly-through).
 
-Stationing comes from bimforge.bim.alignment_station, which this add-on
-carries as its own copy (`python -m bimforge.blender` builds the zip). It
-needs ifcopenshell inside Blender: Bonsai provides it.
+Stationing, drawing, 4D state and section styles come from the sibling
+modules of this package (`python -m ifcsection` builds the installable zip,
+with this module as its __init__). It needs ifcopenshell inside Blender:
+Bonsai provides it.
 """
 from __future__ import annotations
 
 import math
 
 bl_info = {
-    "name": "Alignment Section (bimforge)",
-    "author": "bimforge",
+    "name": "IfcSection",
+    "author": "Brandon Lewis",
     "version": (0, 1, 0),
     "blender": (4, 2, 0),
     "location": "View3D > Sidebar > Section",
-    "description": "Station slider that cuts a section along an IFC alignment",
+    "description": "Sections and developed elevations along an IFC alignment",
+    "doc_url": "https://github.com/BrandonLewis/ifcsection",
     "category": "3D View",
 }
 
-try:                                    # the add-on zip carries its own copy
-    from . import alignment_station as _st
-    from . import developed as _dev
-    from . import schedule_state as _ss
-    from . import section_style as _sty
-except ImportError:                     # running from the bimforge package
-    from bimforge.bim import alignment_station as _st
-    from bimforge.bim import developed as _dev
-    from bimforge.bim import schedule_state as _ss
-    from bimforge.bim import section_style as _sty
+# siblings in the ifcsection package, and in the add-on zip alike
+from . import alignment_station as _st
+from . import developed as _dev
+from . import schedule_state as _ss
+from . import section_style as _sty
 
 try:
     import bpy
@@ -178,7 +175,7 @@ def _cut_material():
 
 #: Section fill by what the thing IS, for a cut item whose own styling says
 #: nothing (no material, or Blender's / ifcopenshell's default 0.8 grey):
-#: bimforge.bim.section_style, shared with the DXF sheets. (kind, regex, rgb)
+#: ifcsection.section_style, shared with the DXF sheets. (kind, regex, rgb)
 FILL_PALETTE: list[tuple[str, str, tuple]] = [(k.kind, k.pattern, k.rgb)
                                               for k in _sty.KINDS]
 UNSTYLED = _sty.UNSTYLED
@@ -186,7 +183,7 @@ _DEFAULT_GREY = (0.8, 0.8, 0.8)
 classify = _sty.classify
 #: section ink: the hatch's colour, this fraction of the fill's
 INK = 0.30
-PERIOD_NODE = "BIMForge hatch period"
+PERIOD_NODE = "IfcSection hatch period"
 
 
 def _styled_rgb(mat):
@@ -232,7 +229,7 @@ def _section_material(name: str, rgb, paint: str | None = None,
     """An opaque section fill in `rgb` (opaque even when the source is
     see-through, like earthwork: a cut face is solid). UNLIT - an emission,
     so the viewport light never tints it - with the kind's hatch inked over
-    it (bimforge.bim.section_style; `paint` overrides, "" is flat). Solid
+    it (ifcsection.section_style; `paint` overrides, "" is flat). Solid
     mode shows the flat colour; Material Preview and Rendered the hatch."""
     k = _sty.style_of(name)
     own = k.paint if k else ""
@@ -248,9 +245,9 @@ def _section_material(name: str, rgb, paint: str | None = None,
         mat.use_nodes = True
     mat.diffuse_color = (*rgb, 1.0)
     sig = f"{paint} {rgb[0]:.4f} {rgb[1]:.4f} {rgb[2]:.4f}"
-    if mat.get("bimforge_paint") != sig:
+    if mat.get("ifcsection_paint") != sig:
         _paint(mat, tuple(rgb), paint)
-        mat["bimforge_paint"] = sig
+        mat["ifcsection_paint"] = sig
     return mat
 
 
@@ -956,7 +953,7 @@ def global_id(ob, f, by_name: dict) -> str | None:
 def apply_date(scene) -> dict | None:
     """Hide what does not stand on `props.date` (or show everything again
     when the filter is off), then re-cut. Returns the counts."""
-    props = scene.bimforge_section
+    props = scene.ifcsection
     f = _STATE["file"]
     helper = bpy.data.collections.get(COLL)
     skip = set(helper.all_objects) if helper else set()
@@ -1011,7 +1008,7 @@ def _redraw():
 
 
 def update(scene):
-    props = scene.bimforge_section
+    props = scene.ifcsection
     st = _stationer(props)
     if st is None:
         return
@@ -1230,13 +1227,13 @@ if bpy is not None:
         overlay: BoolProperty(name="Viewport label", default=True)
 
     # -------------------------------------------------------------- ops
-    class BIMFORGE_OT_section_load(bpy.types.Operator):
-        bl_idname = "bimforge.section_load"
+    class IFCSECTION_OT_section_load(bpy.types.Operator):
+        bl_idname = "ifcsection.section_load"
         bl_label = "Load Alignments"
         bl_description = "Read the IfcAlignments and draw the chosen one"
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             _STATE["key"] = None
             st = _stationer(props)
             if st is None:
@@ -1247,14 +1244,14 @@ if bpy is not None:
             self.report({"INFO"}, f"{len(_STATE['stationers'])} alignment(s)")
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_step(bpy.types.Operator):
-        bl_idname = "bimforge.section_step"
+    class IFCSECTION_OT_section_step(bpy.types.Operator):
+        bl_idname = "ifcsection.section_step"
         bl_label = "Step Station"
         bl_description = "Move the section by the step"
         direction: bpy.props.IntProperty(default=1)
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             st = _stationer(props)
             if st is None:
                 return {"CANCELLED"}
@@ -1264,13 +1261,13 @@ if bpy is not None:
             props.position = min(1.0, max(0.0, d / st.length))
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_goto(bpy.types.Operator):
-        bl_idname = "bimforge.section_goto"
+    class IFCSECTION_OT_section_goto(bpy.types.Operator):
+        bl_idname = "ifcsection.section_goto"
         bl_label = "Go"
         bl_description = "Jump to the typed station"
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             st = _stationer(props)
             if st is None:
                 return {"CANCELLED"}
@@ -1282,15 +1279,15 @@ if bpy is not None:
             props.position = min(1.0, max(0.0, d / st.length))
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_to_selected(bpy.types.Operator):
-        bl_idname = "bimforge.section_to_selected"
+    class IFCSECTION_OT_section_to_selected(bpy.types.Operator):
+        bl_idname = "ifcsection.section_to_selected"
         bl_label = "Go to Selected"
         bl_description = ("Slide the section to the selected element: its "
                           "station from the IFC (BIMForge_LinearReference), "
                           "else where its bounding box centre locates")
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             ob = context.active_object
             st = _stationer(props)
             if st is None or ob is None:
@@ -1316,15 +1313,15 @@ if bpy is not None:
             self.report({"INFO"}, text)
             return {"FINISHED"}
 
-    class BIMFORGE_OT_developed_build(bpy.types.Operator):
-        bl_idname = "bimforge.developed_build"
+    class IFCSECTION_OT_developed_build(bpy.types.Operator):
+        bl_idname = "ifcsection.developed_build"
         bl_label = "Develop"
         bl_description = ("Draw the developed elevation along the offset line in "
                           "its own scene: the cut filled per styling, the visible "
                           "edges beyond, the ground lines and the station ticks")
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             try:
                 view, f = developed_view(props)
                 dr = _dev.develop(f, view)
@@ -1340,8 +1337,8 @@ if bpy is not None:
                                    f"{len(dr.cut)} cut, {len(dr.beyond)} lines beyond"))
             return {"FINISHED"}
 
-    class BIMFORGE_OT_developed_dxf(bpy.types.Operator):
-        bl_idname = "bimforge.developed_dxf"
+    class IFCSECTION_OT_developed_dxf(bpy.types.Operator):
+        bl_idname = "ifcsection.developed_dxf"
         bl_label = "Export DXF"
         bl_description = "Write the developed elevation as a DXF sheet (needs ezdxf)"
         filepath: StringProperty(subtype="FILE_PATH", default="developed.dxf")
@@ -1351,14 +1348,14 @@ if bpy is not None:
             return {"RUNNING_MODAL"}
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             try:
                 view, f = developed_view(props)
                 lines = _dev.write_dxf([_dev.develop(f, view)],
                                        bpy.path.abspath(self.filepath))
             except ImportError:
                 self.report({"ERROR"}, "DXF needs ezdxf in Blender's Python "
-                            "(or run: est-bim elevation set.yaml)")
+                            "(pip install ezdxf into Blender's Python)")
                 return {"CANCELLED"}
             except Exception as exc:
                 self.report({"ERROR"}, str(exc))
@@ -1366,8 +1363,8 @@ if bpy is not None:
             self.report({"INFO"}, lines[0])
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_dxf(bpy.types.Operator):
-        bl_idname = "bimforge.section_dxf"
+    class IFCSECTION_OT_section_dxf(bpy.types.Operator):
+        bl_idname = "ifcsection.section_dxf"
         bl_label = "Export Section DXF"
         bl_description = ("Write the cross section the camera shows (this station, "
                           "the view width, depth and look) as a DXF sheet "
@@ -1379,7 +1376,7 @@ if bpy is not None:
             return {"RUNNING_MODAL"}
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             try:
                 view, f = section_view_def(props)
                 lines = _dev.write_dxf([_dev.cross_section(f, view)],
@@ -1393,8 +1390,8 @@ if bpy is not None:
             self.report({"INFO"}, lines[0])
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_exit(bpy.types.Operator):
-        bl_idname = "bimforge.section_exit"
+    class IFCSECTION_OT_section_exit(bpy.types.Operator):
+        bl_idname = "ifcsection.section_exit"
         bl_label = "Exit"
         bl_description = ("Leave the section completely: a free 3D view of "
                           "the whole model, the section camera, plane, cut, "
@@ -1407,8 +1404,8 @@ if bpy is not None:
             self.report({"INFO"}, "; ".join(done) if done else "section closed")
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_view(bpy.types.Operator):
-        bl_idname = "bimforge.section_view"
+    class IFCSECTION_OT_section_view(bpy.types.Operator):
+        bl_idname = "ifcsection.section_view"
         bl_label = "View Section"
         bl_description = "Look through the section camera"
 
@@ -1430,13 +1427,13 @@ if bpy is not None:
                 area.spaces.active.region_3d.view_perspective = "CAMERA"
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_cut(bpy.types.Operator):
-        bl_idname = "bimforge.section_cut"
+    class IFCSECTION_OT_section_cut(bpy.types.Operator):
+        bl_idname = "ifcsection.section_cut"
         bl_label = "Cut Now"
         bl_description = "Cut the meshes at the current station"
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             fr = _STATE["frame"]
             if fr is None:
                 return {"CANCELLED"}
@@ -1446,8 +1443,8 @@ if bpy is not None:
                 look)
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_date_step(bpy.types.Operator):
-        bl_idname = "bimforge.section_date_step"
+    class IFCSECTION_OT_section_date_step(bpy.types.Operator):
+        bl_idname = "ifcsection.section_date_step"
         bl_label = "Step Date"
         bl_description = ("Move the 4D date by days, or to the previous / "
                           "next day something appears or is removed")
@@ -1455,7 +1452,7 @@ if bpy is not None:
         event: bpy.props.IntProperty(default=0)    # -1 / +1: jump to event
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             ev = _STATE["events"]
             if not ev:
                 self.report({"WARNING"}, "the IFC carries no 4D schedule")
@@ -1473,14 +1470,14 @@ if bpy is not None:
             props.date = day                  # its update re-filters
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_offset_locate(bpy.types.Operator):
-        bl_idname = "bimforge.section_offset_locate"
+    class IFCSECTION_OT_section_offset_locate(bpy.types.Operator):
+        bl_idname = "ifcsection.section_offset_locate"
         bl_label = "Locate"
         bl_description = ("Put the 3D cursor at the offset from the current "
                           "station and read the surface there")
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             st, fr = _stationer(props), _STATE["frame"]
             if st is None or fr is None:
                 return {"CANCELLED"}
@@ -1491,15 +1488,15 @@ if bpy is not None:
             self.report({"INFO"}, _point_text(props, st))
             return {"FINISHED"}
 
-    class BIMFORGE_OT_section_offset_inquire(bpy.types.Operator):
-        bl_idname = "bimforge.section_offset_inquire"
+    class IFCSECTION_OT_section_offset_inquire(bpy.types.Operator):
+        bl_idname = "ifcsection.section_offset_inquire"
         bl_label = "Inquire Cursor"
         bl_description = ("Station and offset of the 3D cursor; with Cut, "
                           "also slide the section there")
         cut_there: bpy.props.BoolProperty(default=False)
 
         def execute(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             st = _stationer(props)
             if st is None:
                 return {"CANCELLED"}
@@ -1516,16 +1513,16 @@ if bpy is not None:
             return {"FINISHED"}
 
     # ------------------------------------------------------------ panel
-    class BIMFORGE_PT_section(bpy.types.Panel):
+    class IFCSECTION_PT_section(bpy.types.Panel):
         bl_label = "Alignment Section"
         bl_space_type = "VIEW_3D"
         bl_region_type = "UI"
         bl_category = "Section"
 
         def draw(self, context):
-            props = context.scene.bimforge_section
+            props = context.scene.ifcsection
             if context.scene.name == DEV_SCENE:
-                self.layout.operator("bimforge.section_exit",
+                self.layout.operator("ifcsection.section_exit",
                                      text="Back to the model",
                                      icon="LOOP_BACK").full = False
                 return
@@ -1533,7 +1530,7 @@ if bpy is not None:
             col.row().prop(props, "source", expand=True)
             if props.source == "FILE":
                 col.prop(props, "ifc_path", text="")
-            col.operator("bimforge.section_load", icon="FILE_REFRESH")
+            col.operator("ifcsection.section_load", icon="FILE_REFRESH")
             if _STATE["error"]:
                 self.layout.label(text=_STATE["error"], icon="ERROR")
             if not _STATE["stationers"]:
@@ -1550,15 +1547,15 @@ if bpy is not None:
                           icon="CURVE_PATH")
             box.prop(props, "station", slider=True)
             row = box.row(align=True)
-            row.operator("bimforge.section_step", text="",
+            row.operator("ifcsection.section_step", text="",
                          icon="TRIA_LEFT").direction = -1
             row.prop(props, "step")
-            row.operator("bimforge.section_step", text="",
+            row.operator("ifcsection.section_step", text="",
                          icon="TRIA_RIGHT").direction = 1
             row = box.row(align=True)
             row.prop(props, "goto")
-            row.operator("bimforge.section_goto")
-            box.operator("bimforge.section_to_selected", icon="RESTRICT_SELECT_OFF")
+            row.operator("ifcsection.section_goto")
+            box.operator("ifcsection.section_to_selected", icon="RESTRICT_SELECT_OFF")
             if fr is not None:
                 info = box.column(align=True)
                 elev = st.to_unit(st.elevation_m(fr.point[2]), u)
@@ -1568,9 +1565,9 @@ if bpy is not None:
                 info.label(text=(f"{st.format_station(st.start_station, u)}"
                                  f" to {st.format_station(st.end_station, u)}"))
             row = self.layout.row(align=True)
-            row.operator("bimforge.section_view", icon="VIEW_CAMERA")
-            row.operator("bimforge.section_exit", icon="LOOP_BACK")
-            self.layout.operator("bimforge.section_dxf", icon="EXPORT")
+            row.operator("ifcsection.section_view", icon="VIEW_CAMERA")
+            row.operator("ifcsection.section_exit", icon="LOOP_BACK")
+            self.layout.operator("ifcsection.section_dxf", icon="EXPORT")
             if _STATE["events"]:
                 dbox = self.layout.box()
                 dbox.label(text="4D date", icon="TIME")
@@ -1584,7 +1581,7 @@ if bpy is not None:
                                  ("FF", {"days": 1}),
                                  ("TRIA_RIGHT", {"days": 7}),
                                  ("NEXT_KEYFRAME", {"event": 1})):
-                    op = row.operator("bimforge.section_date_step", text="",
+                    op = row.operator("ifcsection.section_date_step", text="",
                                       icon=icon)
                     for k, v in kw.items():
                         setattr(op, k, v)
@@ -1611,10 +1608,10 @@ if bpy is not None:
             row.prop(props, "pt_offset")
             row.prop(props, "pt_side", expand=True)
             row = offs.row(align=True)
-            row.operator("bimforge.section_offset_locate", icon="PIVOT_CURSOR")
-            row.operator("bimforge.section_offset_inquire", text="Inquire",
+            row.operator("ifcsection.section_offset_locate", icon="PIVOT_CURSOR")
+            row.operator("ifcsection.section_offset_inquire", text="Inquire",
                          icon="CURSOR")
-            row.operator("bimforge.section_offset_inquire", text="Cut",
+            row.operator("ifcsection.section_offset_inquire", text="Cut",
                          icon="MOD_BOOLEAN").cut_there = True
             if _STATE.get("point"):
                 for line in _point_text(props, st).split("  |  "):
@@ -1633,8 +1630,8 @@ if bpy is not None:
             row.prop(props, "dev_exag")
             dev.prop(props, "dev_true")
             row = dev.row(align=True)
-            row.operator("bimforge.developed_build", icon="SEQ_LUMA_WAVEFORM")
-            row.operator("bimforge.developed_dxf", icon="EXPORT")
+            row.operator("ifcsection.developed_build", icon="SEQ_LUMA_WAVEFORM")
+            row.operator("ifcsection.developed_dxf", icon="EXPORT")
             view = self.layout.column(align=True)
             view.row().prop(props, "look", expand=True)
             view.prop(props, "width")
@@ -1649,7 +1646,7 @@ if bpy is not None:
             cutc.row().prop(props, "excavation", expand=True)
             cutc.prop(props, "target")
             if not props.live_cut:
-                cutc.operator("bimforge.section_cut", icon="MOD_BOOLEAN")
+                cutc.operator("ifcsection.section_cut", icon="MOD_BOOLEAN")
             more = self.layout.column(align=True)
             more.prop(props, "units")
             more.prop(props, "follow_frames")
@@ -1657,7 +1654,7 @@ if bpy is not None:
             more.prop(props, "shift")
 
 
-DEV_SCENE = "BIMForge Developed Elevation"
+DEV_SCENE = "IfcSection Developed Elevation"
 DEV_PREFIX = "Elevation"             # the developed scene's own fill materials
 
 
@@ -1736,7 +1733,7 @@ def close_section(context) -> list[str]:
     alignment stays loaded: the slider or View Section brings it back."""
     done = exit_views(context)
     scene = context.window.scene if context.window else context.scene
-    props = scene.bimforge_section
+    props = scene.ifcsection
     if props.date_filter:
         _STATE["frame"] = None                # so turning it off does not re-cut
         props.date_filter = False
@@ -1840,7 +1837,7 @@ def build_developed(dr) -> "bpy.types.Scene":
     cam.location = Vector(((x0 + x1) / 2 * k, -50.0, (y0 + y1) / 2 * k))
     cam.rotation_euler = (math.pi / 2, 0.0, 0.0)          # looks +Y
     sc.camera = cam
-    sc["bimforge_developed"] = {"view": dr.view.name, "length": dr.length,
+    sc["ifcsection_developed"] = {"view": dr.view.name, "length": dr.length,
                                 "unit": dr.unit}
     return sc
 
@@ -1910,7 +1907,7 @@ def _bearing(az: float) -> str:
 
 def _draw_overlay():
     ctx = bpy.context
-    props = getattr(ctx.scene, "bimforge_section", None)
+    props = getattr(ctx.scene, "ifcsection", None)
     fr = _STATE["frame"]
     if props is None or not props.overlay or fr is None:
         return
@@ -1942,7 +1939,7 @@ def _persistent(fn):
 
 
 def _frame_change(scene, *_):
-    props = getattr(scene, "bimforge_section", None)
+    props = getattr(scene, "ifcsection", None)
     if props is None or not props.follow_frames:
         return
     span = max(1, scene.frame_end - scene.frame_start)
@@ -1957,14 +1954,14 @@ def _load_post(*_):
 
 
 _CLASSES = () if bpy is None else (
-    SectionProps, BIMFORGE_OT_section_load, BIMFORGE_OT_section_step,
-    BIMFORGE_OT_section_goto, BIMFORGE_OT_section_view,
-    BIMFORGE_OT_section_cut, BIMFORGE_OT_section_offset_locate,
-    BIMFORGE_OT_section_to_selected,
-    BIMFORGE_OT_developed_build, BIMFORGE_OT_developed_dxf,
-    BIMFORGE_OT_section_dxf, BIMFORGE_OT_section_exit,
-    BIMFORGE_OT_section_offset_inquire, BIMFORGE_OT_section_date_step,
-    BIMFORGE_PT_section)
+    SectionProps, IFCSECTION_OT_section_load, IFCSECTION_OT_section_step,
+    IFCSECTION_OT_section_goto, IFCSECTION_OT_section_view,
+    IFCSECTION_OT_section_cut, IFCSECTION_OT_section_offset_locate,
+    IFCSECTION_OT_section_to_selected,
+    IFCSECTION_OT_developed_build, IFCSECTION_OT_developed_dxf,
+    IFCSECTION_OT_section_dxf, IFCSECTION_OT_section_exit,
+    IFCSECTION_OT_section_offset_inquire, IFCSECTION_OT_section_date_step,
+    IFCSECTION_PT_section)
 _HANDLERS: list = []
 
 
@@ -1977,7 +1974,7 @@ def register():
                                          set=_sta_set, precision=2)
     SectionProps.offset = FloatProperty(name="Offset", get=_off_get,
                                         set=_off_set, precision=2)
-    bpy.types.Scene.bimforge_section = bpy.props.PointerProperty(
+    bpy.types.Scene.ifcsection = bpy.props.PointerProperty(
         type=SectionProps)
     fc, lp = _persistent(_frame_change), _persistent(_load_post)
     bpy.app.handlers.frame_change_post.append(fc)
@@ -1997,7 +1994,7 @@ def unregister():
         if fn in lst:
             lst.remove(fn)
     _HANDLERS.clear()
-    del bpy.types.Scene.bimforge_section
+    del bpy.types.Scene.ifcsection
     for cls in reversed(_CLASSES):
         bpy.utils.unregister_class(cls)
     _load_post()

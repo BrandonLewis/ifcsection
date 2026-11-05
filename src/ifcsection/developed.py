@@ -31,10 +31,10 @@ TRUE - as seen - so looking from the left, stations increase to the LEFT;
 `date` shows the model as it stands on that day (its 4D schedule).
 
 The geometry is unrolled per vertex (station/offset of every vertex,
-bimforge.bim.alignment_station.locate_many); on a curved line long faces are
+ifcsection.alignment_station.locate_many); on a curved line long faces are
 split first so they bend with it (`max_edge`).
 
-`est-bim elevation set.yaml` draws a whole sheet set: an overall view and
+`load_set(set.yaml)` reads a whole sheet set (BIMForge's `est-bim elevation` draws one): an overall view and
 enlarged segments (see `load_set`).
 
 `cross_section` draws the other view, a SECTION square to the alignment at one
@@ -974,7 +974,7 @@ def write_dxf(drawings: list, path: str, sheet: Sheet | None = None) -> list[str
 def _cut_to_dxf(doc, msp, layer, rgb, rings, dy, scale) -> None:
     """One material's cut: a solid fill in its colour on `layer` (a colour
     plot; freeze it for black and white), its hatch pattern in ink on
-    `layer`-PATT (bimforge.bim.section_style: concrete stipple, earth, fill,
+    `layer`-PATT (ifcsection.section_style: concrete stipple, earth, fill,
     gravel ...) with the heavy cut outline, so freezing the colour layers
     leaves a black-and-white section. Rebar plots solid, and a bar
     smaller than MIN_DOT_IN on paper as a dot that size."""
