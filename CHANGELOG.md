@@ -14,7 +14,8 @@ Ported from BIMForge (its fix for this project's PR #1 review):
   of a host is still to dig, the host is drawn uncut beyond the plane. A
   ground solid that its cut removes entirely, lying behind the plane, no
   longer vanishes from the pre-dig view. A host with some voids already
-  dug is drawn as before, with all of its voids.
+  dug is drawn as before, with all of its voids. Ground that is not
+  standing at the date (placed later, or already removed) restores nothing.
 
 ## 0.1.1 - 2026-11-05
 
