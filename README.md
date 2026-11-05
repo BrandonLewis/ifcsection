@@ -89,7 +89,8 @@ python -m ifcsection          # build ./ifcsection_addon.zip
 ```
 
 Releases: bump `version` in `pyproject.toml` and `__init__.py`, update
-`CHANGELOG.md`, then tag `vX.Y.Z`. The release workflow attaches the add-on zip.
+`CHANGELOG.md`, then either tag `vX.Y.Z` or run the Release workflow on `main`
+(which tags it). Either way it attaches the add-on zip.
 
 ## License
 
