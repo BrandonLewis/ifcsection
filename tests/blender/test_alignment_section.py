@@ -803,6 +803,7 @@ def test_restored_ground_stays_inside_its_host(addon, tmp_path):
         bpy.ops.ifcsection.section_load()
 
 
+@pytest.mark.skipif(not HAS_VOIDS, reason="needs BIMForge with Element.voids")
 def test_no_ground_is_restored_where_the_plane_misses_the_host(addon, tmp_path):
     """The host stops short of the section; its cut runs on through it. Before
     the dig nothing is restored there: there is no ground to restore."""
