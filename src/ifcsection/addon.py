@@ -561,9 +561,10 @@ _FEATURE_PREFIXES = ("IfcEarthworksCut/", "IfcOpeningElement/",
 
 
 def _cut_features() -> list:
-    """[(GlobalId, name, verts, tris)] of every IfcEarthworksCut in the open
+    """[(GlobalId, name, verts, tris, host)] of every excavation in the open
     IFC, world metres - read from the file, so they are there whether or not
-    the viewer imported the cuts as objects. Cached per file."""
+    the viewer imported the cuts as objects. `host` is the (verts, tris) of
+    the ground a hosted cut voids, UNCUT, or None. Cached per file."""
     f = _STATE.get("file")
     if f is None:
         return []
@@ -575,7 +576,7 @@ def _cut_features() -> list:
         cuts += f.by_type("IfcEarthworksCut")
     except RuntimeError:                  # IFC4: no such class
         cuts = []
-    names = set()
+    names, uncut = set(), {}
     if cuts:
         import ifcopenshell.geom as geom
         s = geom.settings()
@@ -587,9 +588,19 @@ def _cut_features() -> list:
                 continue
             v, t = list(g.verts), list(g.faces)
             names.add(f"{e.is_a()}/{e.Name}")
+            hosts = [r.RelatingBuildingElement
+                     for r in getattr(e, "VoidsElements", None) or ()]
+            host = None
+            if hosts:
+                h = hosts[0]
+                if h.id() not in uncut:
+                    hv, ht = _dev._uncut(f, h)
+                    uncut[h.id()] = None if hv is None else (
+                        [tuple(x) for x in hv], [tuple(x) for x in ht])
+                host = uncut[h.id()]
             out.append((e.GlobalId, e.Name or "excavation",
                         [tuple(v[i:i + 3]) for i in range(0, len(v), 3)],
-                        [tuple(t[i:i + 3]) for i in range(0, len(t), 3)]))
+                        [tuple(t[i:i + 3]) for i in range(0, len(t), 3)], host))
     _STATE.update(cuts_key=id(f), cuts=out, cut_names=names)
     return out
 
@@ -623,6 +634,51 @@ def _dug(gid, props) -> bool:
     except ValueError:
         return True
     return _ss.standing(_STATE["spans"].get(gid), day)
+
+
+def _clip_to_host(cut_edges, host, co, look, shift):
+    """The cut's section clipped to its host's UNCUT section, as closed rings
+    of points in the plane; None when it cannot be clipped (no host section),
+    in which case the caller fills the cut as it is."""
+    import bmesh
+    from mathutils import Vector
+    from shapely.geometry import Polygon
+    from shapely.geometry.polygon import orient
+    from shapely.ops import unary_union
+    x = look.orthogonal().normalized()
+    y = look.cross(x).normalized()
+
+    def flat(p):
+        d = Vector(p) - co
+        return (d.dot(x), d.dot(y))
+
+    def region(segs):
+        rings = _dev._polygons(segs, -1e9, 1e9)
+        return unary_union([Polygon(r[0], r[1:]) for r in rings]) if rings else None
+    hv, ht = host
+    bm = bmesh.new()
+    try:
+        vs = [bm.verts.new(Vector(p) + shift) for p in hv]
+        for tri in ht:
+            try:
+                bm.faces.new([vs[i] for i in tri])
+            except ValueError:
+                pass
+        host_edges = _bisect(bm, co, look)
+        ground = region([(flat(e.verts[0].co), flat(e.verts[1].co)) for e in host_edges])
+    finally:
+        bm.free()
+    cut = region([(flat(e.verts[0].co), flat(e.verts[1].co)) for e in cut_edges])
+    if ground is None or cut is None:
+        return None
+    kept = cut.intersection(ground)
+    out = []
+    for g in getattr(kept, "geoms", [kept]):
+        if isinstance(g, Polygon) and not g.is_empty and g.area > 1e-10:
+            g = orient(g, 1.0)
+            for ring in [g.exterior, *g.interiors]:
+                out.append([co + x * u + y * v for u, v in list(ring.coords)[:-1]])
+    return out
 
 
 def _dashes(segs, dash, gap):
@@ -713,7 +769,7 @@ def cut(scene, props, co, look):
     from mathutils import Vector
     shift = Vector(props.shift)
     limit_segs = []
-    for gid, _name, V, T in _cut_features():
+    for gid, _name, V, T, host in _cut_features():
         dug = _dug(gid, props)
         if dug and props.excavation == "HIDDEN":
             continue
@@ -737,13 +793,24 @@ def cut(scene, props, co, look):
                 fill = ((k.kind, k.rgb, k.paint) if not dug else SOLID_FILL) \
                     if by_style else ("Cut", None, "")
                 new_edges = []
-                vmap = {}
-                for e in cut_edges:
-                    a, b = (vmap.get(v) or vmap.setdefault(v, out.verts.new(v.co))
-                            for v in e.verts)
-                    if a is not b:
-                        new_edges.append(out.edges.new((a, b)))
-                groups.append((fills.setdefault(fill, len(fills)), new_edges))
+                rings = _clip_to_host(cut_edges, host, co, look, shift) \
+                    if host is not None else None
+                if rings is not None:
+                    # a cut can reach past its host (over grade, as an opening
+                    # runs past its wall): fill only what lies in the ground
+                    for ring in rings:
+                        vs_ = [out.verts.new(q) for q in ring]
+                        new_edges += [out.edges.new((vs_[i], vs_[(i + 1) % len(vs_)]))
+                                      for i in range(len(vs_))]
+                else:
+                    vmap = {}
+                    for e in cut_edges:
+                        a, b = (vmap.get(v) or vmap.setdefault(v, out.verts.new(v.co))
+                                for v in e.verts)
+                        if a is not b:
+                            new_edges.append(out.edges.new((a, b)))
+                if new_edges:
+                    groups.append((fills.setdefault(fill, len(fills)), new_edges))
         finally:
             bm.free()
     excavation_limits(scene, props, limit_segs, co, look)

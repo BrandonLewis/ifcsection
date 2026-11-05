@@ -748,3 +748,56 @@ def test_a_pay_item_excavation_body_is_not_a_block_in_the_hole(addon, tmp_path):
             bpy.data.objects.remove(ob)
         props.ifc_path = home_path
         bpy.ops.ifcsection.section_load()
+
+
+@pytest.mark.skipif(not HAS_VOIDS, reason="needs BIMForge with Element.voids")
+def test_restored_ground_stays_inside_its_host(addon, tmp_path):
+    """A cut reaching 1 ft past grade (as an opening runs past its wall):
+    before its dig only the host's ground is restored, not the air over it."""
+    mod, m, al, _prof = addon
+    from bimforge.author.emit_ifc import emit_ifc
+    from bimforge.author.model import Element, StructureModel
+    from bimforge.author.sweep import SweptSection
+    sc = bpy.context.scene
+    props = sc.ifcsection
+    home_path = props.ifc_path
+    dm = StructureModel("over", m.ctx)
+
+    def body(name, ring, ifc, **kw):
+        sw = SweptSection(name, ring, al, 1010.0, 1360.0, origin=m.ctx, ifc=ifc)
+        dm.add(Element.from_geometry(name, sw, ifc_class=ifc,
+                                     quantities={"volume_cf": sw.volume_cf}, **kw))
+    box = lambda x0, x1, z0, z1: [(x0, z0), (x1, z0), (x1, z1), (x0, z1)]  # noqa: E731
+    body("existing ground", box(-20, 20, -12, 0), "IfcGeographicElement")
+    body("structure excavation", box(-6, 6, -6, 1), "IfcEarthworksCut")
+    dm.element("structure excavation").voids = "existing ground"
+    dm.alignments.append((al, None))
+    path = tmp_path / "over.ifc"
+    emit_ifc(dm, str(path))
+    f = ifcopenshell.open(str(path))
+    before = set(bpy.data.objects.keys())
+    _import_meshes(f)
+    made = [bpy.data.objects[n] for n in set(bpy.data.objects.keys()) - before]
+    next(o for o in made if o.name.startswith("structure excavation")).name = \
+        "IfcEarthworksCut/structure excavation"
+    try:
+        props.ifc_path = str(path)
+        assert bpy.ops.ifcsection.section_load() == {"FINISHED"}
+        props.goto = 1200.0
+        bpy.ops.ifcsection.section_goto()
+        props.excavation = "LIMITS"
+        gid = f.by_type("IfcEarthworksCut")[0].GlobalId
+        mod._STATE["spans"] = {gid: mod._ss.Span("2027-01-10", None, ("dig",))}
+        props.date = "2027-01-05"
+        props.date_filter = True
+        bpy.ops.ifcsection.section_cut()
+        me = bpy.data.objects[mod.CUT].data
+        earth = sum(p.area for p in me.polygons
+                    if "Earthwork" in me.materials[p.material_index].name) / SQ_M_PER_SQ_FT
+        assert earth == pytest.approx(40 * 12, rel=1e-2)        # not 40 x 12 + 12 x 1
+    finally:
+        props.date_filter = False
+        for ob in made:
+            bpy.data.objects.remove(ob)
+        props.ifc_path = home_path
+        bpy.ops.ifcsection.section_load()

@@ -2,6 +2,25 @@
 
 Newest first. Versions follow `pyproject.toml`; a tag `vX.Y.Z` publishes the add-on zip.
 
+## Unreleased
+
+### Fixed
+
+Ported from BIMForge 0.1.100 (its PR #8 review):
+
+- **Restored ground stays inside its host.** Before its dig date, a cut
+  that voids the ground restores only the ground, not the air above it. A
+  cut can reach past grade, as an opening runs past its wall.
+  - **Sections and DXF:** the restored fill is clipped to the host's uncut
+    section.
+  - **Blender add-on:** the same clip applies to Solid mode's
+    volume-removed fill.
+
+  A pay-item excavation body (unhosted) is the soil itself, so it is still
+  restored whole.
+- **Drawing extents take in the limits of excavation**, so a section of an
+  excavation alone is no longer clipped.
+
 ## 0.1.0 - 2026-11-05
 
 First release as its own project, split out of BIMForge (0.1.98 and the
