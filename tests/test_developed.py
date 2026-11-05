@@ -1,6 +1,7 @@
 """bimforge.bim.developed: developed elevations along an IfcAlignment."""
 from __future__ import annotations
 
+import math
 import uuid
 
 import pytest
@@ -376,3 +377,120 @@ def test_review_three_classification_materials_and_occlusion(wall_section):
             [(4, 4), (6, 4), (6, 6), (4, 6), (4, 4)]]
     D._raster_cut(zbuf, [("E-CUT-Concrete", (0.7, 0.7, 0.7), [ring])], 1.0, 0.0)
     assert zbuf[2, 2] == 0.0 and np.isinf(zbuf[5, 5]) and np.isinf(zbuf[0, 0])
+
+
+@pytest.fixture(scope="module")
+def dug(tmp_path_factory):
+    """Ground 20 ft Lt to 20 ft Rt, El -12 to 0, with a 12 ft wide 6 ft deep
+    excavation that VOIDS it (IfcEarthworksCut) and a footing in the hole."""
+    ctx = _ctx()
+    al = Alignment(POB, RUN, name="ML")
+    m = StructureModel("dug", ctx)
+
+    def body(name, ring, ifc, **kw):
+        sw = SweptSection(name, ring, al, 1010.0, 1100.0, origin=ctx, ifc=ifc)
+        m.add(Element.from_geometry(name, sw, ifc_class=ifc,
+                                    quantities={"volume_cf": sw.volume_cf}, **kw))
+    box = lambda x0, x1, z0, z1: [(x0, z0), (x1, z0), (x1, z1), (x0, z1)]  # noqa: E731
+    body("existing ground", box(-20, 20, -12, 0), "IfcGeographicElement")
+    body("structure excavation", box(-6, 6, -6, 0), "IfcEarthworksCut")
+    m.element("structure excavation").voids = "existing ground"
+    body("footing", box(-4, 4, -6, -4), "IfcFooting")
+    m.alignments.append((al, None))
+    out = tmp_path_factory.mktemp("dug") / "dug.ifc"
+    emit_ifc(m, str(out))
+    return ifcopenshell.open(str(out))
+
+
+def test_excavation_is_ground_removed_in_a_section(dug, tmp_path, monkeypatch):
+    """The cut is never a fill: the ground shows the hole, the cut's outline
+    is the dashed limit of excavation, and before its dig date (4D) it is
+    still ground."""
+    from shapely.geometry import Polygon
+    from bimforge.bim import developed as D
+    from bimforge.bim import schedule_state as SS
+
+    def area(dr, layer):
+        return sum(Polygon(p[0], p[1:]).area for lay, _r, ps in dr.cut if lay == layer
+                   for p in ps)
+    D._BODY_CACHE.clear()
+    dr = cross_section(dug, SectionView("S", 1050.0, width=50.0, depth=1.0))
+    layers = {lay for lay, _r, _p in dr.cut}
+    assert D.LIMIT_LAYER not in layers and "E-CUT-Excavation" not in layers
+    assert area(dr, "E-CUT-Earthwork") == pytest.approx(40 * 12 - 12 * 6, rel=1e-3)
+    # the limit of excavation: the cut's outline, 6 + 12 + 6 ft of it
+    total = sum(sum(math.dist(a, b) for a, b in zip(ln, ln[1:])) for ln in dr.limits)
+    assert total == pytest.approx(6 + 12 + 6 + 12, abs=0.05)   # the top edge too
+    out = tmp_path / "s.dxf"
+    write_dxf([dr], str(out))
+    import ezdxf
+    doc = ezdxf.readfile(str(out))
+    lims = [e for e in doc.modelspace().query("LWPOLYLINE") if e.dxf.layer == D.LIMIT_LAYER]
+    assert lims and all(e.dxf.linetype == "DASHED" for e in lims)
+    # 4D: dug on 2027-01-10; on 2027-01-05 the hole is still ground
+    cut = dug.by_type("IfcEarthworksCut")[0]
+    monkeypatch.setattr(SS, "element_spans",
+                        lambda f: {cut.GlobalId: SS.Span("2027-01-10", None, ("dig",))})
+    D._BODY_CACHE.clear()
+    before = cross_section(dug, SectionView("B", 1050.0, width=50.0, depth=1.0,
+                                            date="2027-01-05"))
+    after = cross_section(dug, SectionView("A", 1050.0, width=50.0, depth=1.0,
+                                           date="2027-01-12"))
+    assert area(before, "E-CUT-Earthwork") == pytest.approx(40 * 12, rel=1e-3)
+    assert area(after, "E-CUT-Earthwork") == pytest.approx(40 * 12 - 12 * 6, rel=1e-3)
+    D._BODY_CACHE.clear()
+
+
+def test_a_pay_item_excavation_body_is_ground_removed_too(tmp_path, monkeypatch):
+    """The usual earthwork model: the ground already less the dig, the excavation an
+    unhosted body (IfcEarthworksElement EXCAVATION, #364). It is drawn as the
+    limit of excavation, never a block in the hole; before its dig, ground."""
+    from shapely.geometry import Polygon
+    from bimforge.bim import developed as D
+    from bimforge.bim import schedule_state as SS
+    ctx = _ctx()
+    al = Alignment(POB, RUN, name="ML")
+    m = StructureModel("holed", ctx)
+
+    def body(name, ring, ifc):
+        sw = SweptSection(name, ring, al, 1010.0, 1100.0, origin=ctx, ifc=ifc)
+        m.add(Element.from_geometry(name, sw, ifc_class=ifc,
+                                    quantities={"volume_cf": sw.volume_cf}))
+    body("existing ground (remaining)", [(-20, -12), (20, -12), (20, 0), (6, 0), (6, -6),
+                                         (-6, -6), (-6, 0), (-20, 0)], "IfcGeographicElement")
+    body("structure excavation", [(-6, -6), (6, -6), (6, 0), (-6, 0)], "IfcEarthworksCut")
+    m.alignments.append((al, None))
+    out = tmp_path / "holed.ifc"
+    emit_ifc(m, str(out))
+    f = ifcopenshell.open(str(out))
+    (exc,) = [e for e in f.by_type("IfcEarthworksElement") if D.is_excavation(e)]
+
+    def area(dr):
+        return sum(Polygon(p[0], p[1:]).area for lay, _r, ps in dr.cut for p in ps)
+    D._BODY_CACHE.clear()
+    dr = cross_section(f, SectionView("S", 1050.0, width=50.0, depth=1.0))
+    assert area(dr) == pytest.approx(40 * 12 - 12 * 6, rel=1e-3)      # the hole, no block
+    assert dr.limits
+    monkeypatch.setattr(SS, "element_spans",
+                        lambda f: {exc.GlobalId: SS.Span("2027-01-10", None, ("dig",))})
+    D._BODY_CACHE.clear()
+    before = cross_section(f, SectionView("B", 1050.0, width=50.0, depth=1.0,
+                                          date="2027-01-05"))
+    assert area(before) == pytest.approx(40 * 12, rel=1e-3)
+    D._BODY_CACHE.clear()
+
+
+def test_an_enclosed_cavity_stays_a_hole():
+    """A body with a cavity wholly inside it (ground around a backfilled
+    overexcavation) cuts as an outline with a hole, not a solid: polygonize
+    returns the cavity as a face too."""
+    from shapely.geometry import Polygon
+    from bimforge.bim.developed import _polygons
+    def ring(x0, x1, y0, y1):
+        p = [(x0, y0), (x1, y0), (x1, y1), (x0, y1)]
+        return list(zip(p, p[1:] + p[:1]))
+    rings = _polygons(ring(0, 10, 0, 10) + ring(4, 6, 4, 6), 0.0, 10.0)
+    assert sum(Polygon(r[0], r[1:]).area for r in rings) == pytest.approx(100 - 4)
+    # two separate bodies side by side both stay solid
+    rings = _polygons(ring(0, 4, 0, 4) + ring(5, 9, 0, 4), 0.0, 10.0)
+    assert sum(Polygon(r[0], r[1:]).area for r in rings) == pytest.approx(32)
