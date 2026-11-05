@@ -638,8 +638,9 @@ def _dug(gid, props) -> bool:
 
 def _clip_to_host(cut_edges, host, co, look, shift):
     """The cut's section clipped to its host's UNCUT section, as closed rings
-    of points in the plane; None when it cannot be clipped (no host section),
-    in which case the caller fills the cut as it is."""
+    of points in the plane: none when the plane misses the host (no ground
+    there to restore); None when the cut's own section does not close, in
+    which case the caller fills the cut as it is."""
     import bmesh
     from mathutils import Vector
     from shapely.geometry import Polygon
@@ -669,7 +670,9 @@ def _clip_to_host(cut_edges, host, co, look, shift):
     finally:
         bm.free()
     cut = region([(flat(e.verts[0].co), flat(e.verts[1].co)) for e in cut_edges])
-    if ground is None or cut is None:
+    if ground is None:                   # the plane misses the host
+        return []
+    if cut is None:
         return None
     kept = cut.intersection(ground)
     out = []

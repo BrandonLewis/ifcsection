@@ -18,6 +18,10 @@ Ported from BIMForge 0.1.100 (its PR #8 review):
 
   A pay-item excavation body (unhosted) is the soil itself, so it is still
   restored whole.
+- **No ground is restored where the section misses the host.** When the
+  section plane cuts a hosted cut but not the ground it voids, the add-on
+  no longer fills the whole cut there (in either the pre-dig view or Solid
+  mode). This matches the DXF sections.
 - **Drawing extents take in the limits of excavation**, so a section of an
   excavation alone is no longer clipped.
 
