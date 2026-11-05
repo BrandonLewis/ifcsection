@@ -2,6 +2,20 @@
 
 Newest first. Versions follow `pyproject.toml`; a tag `vX.Y.Z` publishes the add-on zip.
 
+## Unreleased
+
+### Fixed
+
+Ported from BIMForge (its fix for this project's PR #1 review):
+
+- **Ground still to dig draws its edges beyond the cut.** Before the dig
+  date, the visible edges beyond a section or elevation now show the ground
+  as it stands, not the ground with its hole already dug. When every void
+  of a host is still to dig, the host is drawn uncut beyond the plane. A
+  ground solid that its cut removes entirely, lying behind the plane, no
+  longer vanishes from the pre-dig view. A host with some voids already
+  dug is drawn as before, with all of its voids.
+
 ## 0.1.1 - 2026-11-05
 
 ### Fixed
